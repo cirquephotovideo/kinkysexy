@@ -32,17 +32,12 @@ model User {
   forumThreads        ForumThread[]    @relation("threadAuthor")
   forumPosts          ForumPost[]      @relation("postAuthor")
   // V2 — Témoignages vidéo
-  testimoniesUploaded VideoTestimony[]
-  // V2 — Parrainage
   referralCodes       ReferralCode[]
   // V2.1 — Boutique avancée
   reviews             ProductReview[]
   wishlist            Wishlist[]
   loyaltyAccount      LoyaltyAccount?
   // V2 — Venues (établissements LGBT)
-  ownedVenues         Venue[]
-
-  // V2.5 — Sync feed Facebook personnel (cookies session pour scraping headless)
   fbSessionCookies String?   @db.Text
   fbLastSyncedAt   DateTime?
 
@@ -65,32 +60,8 @@ model User {
   favoriteColor  String?  @default("#d61b80")
 
   bookmarks       Bookmark[]
-  journalEntries  JournalEntry[]
-  futureLetters   FutureLetter[]
-  aiConversations AIConversation[]
-  activityLogs    UserActivityLog[]
 
-  // V5 — Kinky Connect (réseau social 3-en-1)
-  connectProfile   ConnectProfile?
-  swipesGiven      ConnectSwipe[]        @relation("swipeFrom")
-  swipesReceived   ConnectSwipe[]        @relation("swipeTo")
-  connectionsFrom  ConnectConnection[]   @relation("connFrom")
-  connectionsTo    ConnectConnection[]   @relation("connTo")
-  connectPosts     ConnectPost[]
-  connectReactions ConnectReaction[]
-  conversations1   ConnectConversation[] @relation("convA")
-  conversations2   ConnectConversation[] @relation("convB")
-  connectMessages  ConnectMessage[]
-  reportsFiled     ConnectReport[]       @relation("reporterRel")
-  reportsAgainst   ConnectReport[]       @relation("reportedRel")
-  blocksGiven      ConnectBlock[]        @relation("blockerRel")
-  blocksReceived   ConnectBlock[]        @relation("blockedRel")
-  premiumSub       ConnectPremium?
-
-  // V6 — Prière vocale + transcription IA
-  vocalPrayers           VocalPrayer[]
-  vocalPrayerConsent     Boolean       @default(false) // RGPD : consentement explicite traitement audio
-  vocalPrayerConsentedAt DateTime?
+  // V5 — GLD Connect (réseau social 3-en-1)
 
   // V7 — Override fin du menu admin par utilisateur (au-dessus des règles de rôle)
   menuOverride           UserMenuOverride?
@@ -115,14 +86,12 @@ model Bookmark {
   @@index([userId, resourceType])
 }
 
-/// Journal intime — strictement privé, jamais publié.
-/// Lettre programmée à soi-même — délivrée à une date future par email.
 /// Conversations IA sauvegardées (Voice Coach, Verset, Juridique).
 model AIConversation {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tool      String // "voice-coach" | "legal" | "verse" | "ask-kinky"
+  tool      String // "voice-coach" | "legal" | "verse" | "ask-gld"
   title     String?
   messages  Json // [{role: "user"|"ai", content: "..."}]
   createdAt DateTime @default(now())
@@ -539,10 +508,6 @@ model ForumPost {
 }
 
 // ───────────────────────────────────────────────
-// V2 — TÉMOIGNAGES VIDÉO
-// ───────────────────────────────────────────────
-
-// ───────────────────────────────────────────────
 // V2 — PARRAINAGE
 // ───────────────────────────────────────────────
 
@@ -720,93 +685,6 @@ enum VenueRating {
   CAUTION // remontées négatives — à approfondir
 }
 
-tags         String[] @default([]) // ex ["happy-hour", "drag-show", "brunch"]
-
-  // Réseaux sociaux
-  instagram String?
-  facebook  String?
-
-  // Synchro Facebook events (pull events depuis la Page FB du venue)
-  facebookPageId      String? // ID numérique ou username de la Page FB
-  facebookPageToken   String?   @db.Text // Page Access Token long-lived (chiffré idéalement)
-  autoPublishFbEvents Boolean   @default(false) // true = published direct, false = brouillon (published=false)
-  fbSyncedAt          DateTime? // dernière synchro réussie
-
-  // Owner pour gérer ses events + coupons depuis /admin
-  ownerId    String?
-  owner      User?   @relation(fields: [ownerId], references: [id])
-  ownerEmail String? // si owner pas inscrit
-
-  // Statut + meta
-  verified  Boolean @default(false) // vérifié par admin Kinky
-  published Boolean @default(true)
-  featured  Boolean @default(false)
-  views     Int     @default(0)
-
-  // Enrichissement IA (Gemini grounded search)
-  googlePlaceId        String? // Place ID Google Maps si trouvé
-  enrichedAt           DateTime? // dernière fois que l'enrichissement a tourné
-  enrichmentConfidence Float? // 0..1 : 0.9 = source officielle Google Maps, 0.7 = sites multiples cohérents, 0.4 = unique source
-  enrichmentSources    Json? // [{url, title, fields:["phone","hours"]}, ...] — citations Gemini
-  enrichmentNotes      String?   @db.Text // résumé textuel des modifs faites par l'IA + warnings
-
-  // Médias enrichis (V2)
-  videos             String[]  @default([]) // URLs YouTube/Vimeo trouvées par IA
-  upcomingEventsHint Json? // [{title, date, source}] events détectés depuis FB/IG sans encore importer
-  freshnessScore     Float? // 0..100, % de complétude de la fiche
-  freshnessCheckedAt DateTime?
-
-  events         Event[] // events qui se passent dans ce lieu
-  coupons        VenueCoupon[]
-  participations VenueParticipation[] // participations à des fêtes religieuses
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
-
-  @@index([type, country, city])
-  @@index([rating, published])
-  @@index([featured, published])
-  @@index([lat, lng])
-  @@index([enrichedAt])
-}
-
-/// Coupon spécifique à un Venue (ex: -10% au resto Le Refuge sur présentation).
-/// Événement public visible sur /agenda — créé/édité dans /admin/events.
-model Event {
-  id             String    @id @default(cuid())
-  slug           String    @unique
-  locale         String    @default("fr")
-  title          String
-  description    String?   @db.Text
-  startsAt       DateTime
-  endsAt         DateTime?
-  location       String? // ex "Église St-Eustache, Paris"
-  city           String?
-  country        String?
-  address        String?
-  lat            Float?
-  lng            Float?
-  coverImage     String?
-  url            String? // lien externe (billeterie, infos)
-  tags           String[]  @default([])
-  published      Boolean   @default(true)
-  cancelled      Boolean   @default(false)
-  // Lien vers un Venue (optionnel — un event peut être hors-venue)
-  venueId        String?
-  venue          Venue?    @relation(fields: [venueId], references: [id])
-  // Source externe (synchro Facebook events, etc.)
-  externalSource String? // "facebook" | "google" | "eventbrite" | null (manual)
-  externalId     String? // ID Facebook/Google/etc. — sert d'idempotence
-  externalUrl    String? // URL d'origine
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-
-  @@unique([externalSource, externalId])
-  @@index([published, startsAt])
-  @@index([locale, startsAt])
-  @@index([venueId, startsAt])
-}
-
-/// Message de chat dans un cercle de prière (group chat planifié).
 /// Soumission générique utilisateur — absorbe mentor / hébergement / signalement / meetups / etc.
 /// Le champ `kind` discrimine, `data` contient le payload JSON spécifique.
 model UserSubmission {
@@ -826,8 +704,6 @@ model UserSubmission {
   @@index([country, city])
 }
 
-/// Demande d'aide / message d'entraide LGBT entre utilisateurs (anonyme possible).
-/// Pas un chat 1-1 : une demande publique modérée que d'autres peuvent réconforter.
 /// Thème visuel saisonnier ou esthétique permanent.
 /// L'admin peut activer manuellement ou laisser l'auto-activation par date de fête.
 model Theme {
@@ -881,11 +757,36 @@ model Setting {
   value String @db.Text
 }
 
-/// Kinky Soul — entrées du "journal" auto-écrit par l'IA chaque jour.
-/// Une voix à la 1ère personne qui synthétise l'activité, l'humeur et les vœux du site.
 /// Plan annuel de newsletters auto-générées par IA.
 /// Une entrée = 1 newsletter prévue à une date donnée (max 52 par an).
 /// Modifiable manuellement avant envoi. Image et vidéo IA générables on-demand.
+model NewsletterPlan {
+  id              String    @id @default(cuid())
+  scheduledFor    DateTime  @unique // date prévue d'envoi (semaine du)
+  weekNumber      Int // numéro de semaine 1-53
+  year            Int
+  title           String // titre éditorial
+  theme           String? // thème de la semaine ("rentrée", "Pride", "Noël", etc.)
+  subject         String? // objet email final (peut différer du titre)
+  preheader       String? // texte de preview email
+  htmlContent     String?   @db.Text // corps HTML complet
+  markdownContent String?   @db.Text
+  imageUrl        String? // URL image IA générée (data URI ou MinIO)
+  imagePrompt     String?   @db.Text // prompt utilisé pour générer l'image
+  videoUrl        String? // URL vidéo IA (Seedance / autre)
+  videoPrompt     String?   @db.Text
+  status          String    @default("draft") // draft | ready | sent | skipped
+  manuallyEdited  Boolean   @default(false) // true si admin a touché manuellement
+  generatedBy     String    @default("gemini")
+  sentAt          DateTime?
+  campaignId      String? // référence vers NewsletterCampaign si envoyée
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([year, weekNumber])
+  @@index([status, scheduledFor])
+}
+
 /// Manuels auto-générés par IA (user / admin / superadmin), versionnés.
 /// Régénérés 2×/jour par cron pour rester à jour avec les évolutions du site.
 model Manual {
@@ -1113,7 +1014,7 @@ model EmailLog {
   @@index([type, status, createdAt])
 }
 
-/// RAG « Demandez à Kinky » — bibliothèque de connaissances thématiques
+/// RAG « Demandez à GLD » — bibliothèque de connaissances thématiques
 model KnowledgeDoc {
   id         String           @id @default(cuid())
   title      String
@@ -1161,47 +1062,6 @@ model UnansweredQuery {
   @@index([status, createdAt])
 }
 
-// ───────────────────────────────────────────────
-// V5 — Kinky CONNECT (réseau social 3-en-1)
-// ───────────────────────────────────────────────
-
-/// Profil unique avec toggles de visibilité par mode.
-/// Swipe (like / pass / super) — base pour détecter les matches.
-/// Match = 2 swipes "like"/"super" croisés. Détecté côté API au moment du swipe.
-/// Connexion Pro (LinkedIn-like) — request + accept.
-/// Post sur le mur Communauté.
-/// Réaction (♥ like / 🕊 prière / ⭐ super).
-/// Conversation entre 2 users (toutes modes confondus, taggée).
-/// Message dans une conversation.
-/// Signalement utilisateur ou contenu.
-/// Block entre users (mutuel, supprime tout contact).
-/// Abonnement Premium (Stripe).
-// ───────────────────────────────────────────────
-// CALENDRIER RELIGIEUX MONDIAL (Sprint 2)
-// ───────────────────────────────────────────────
-
-/// Événement religieux de référence (Pâques, Ramadan, Diwali, etc.).
-/// Une entrée par fête + année (ou par fête si dateMode=fixed et applicable chaque année).
-/// Lien entre un Venue et un ReligiousEvent : "telle église célèbre Pâques 2026 le 5 avril à 11h".
-// ───────────────────────────────────────────────
-// SPRINT 3 — PRIÈRE LIVE & BOUGIES VIRTUELLES
-// ───────────────────────────────────────────────
-
-/// Bougie virtuelle posée sur la carte mondiale, durée 24h.
-/// Intention de prière partagée dans un cercle ou en public.
-/// Présence live dans un cercle — heartbeat toutes les 30s côté client.
-/// Auto-expire après 90s sans heartbeat.
-// ───────────────────────────────────────────────
-// SPRINT 4 — Camino + Genius + Officiants
-// ───────────────────────────────────────────────
-
-/// Chemin de pèlerinage virtuel collectif (Compostelle, Bénarès, Jérusalem, Camino Inca, etc.).
-/// Étape du chemin avec contenu narratif.
-/// Contribution d'un user au pèlerinage collectif (1 contribution = 1 km).
-/// Triggers : prière dans un cercle, intention partagée, bougie allumée, méditation 10min, etc.
-/// Annotation inclusive d'un passage de texte sacré ("Genius des textes sacrés").
-/// Officiant·e religieux·se LGBT-friendly (rabbin, imam, prêtre, pasteur, etc.) prêt·e à célébrer mariages, baptêmes, funérailles, conversions.
-/// Demande de réservation d'un officiant.
 // ───────────────────────────────────────────────
 // INVITATIONS — accès iPad/device avec code temporaire
 // ───────────────────────────────────────────────
@@ -1460,7 +1320,7 @@ model EmailTemplate {
 /// Compte mail IMAP/SMTP connecté pour le webmail back-office.
 model MailAccount {
   id           String   @id @default(cuid())
-  label        String                             // "Contact Kinky"
+  label        String                             // "Contact GLD"
   email        String   @unique
   // IMAP read
   imapHost     String
@@ -1597,15 +1457,12 @@ model UserMenuOverride {
   @@index([userId])
 }
 
-/// Prière vocale enregistrée par l'utilisateur. Audio sur MinIO (privé), texte transcrit par IA.
-/// RGPD : données sensibles (croyances religieuses) — accès strictement perso, droit à suppression totale.
 enum VocalPrayerStatus {
   PROCESSING
   COMPLETED
   FAILED
 }
 
-/// Sources webcam découvertes (manuelles ou agent IA), avec statut live cache.
 // ───────────────────────────────────────────────────────────────
 // COMPARATEUR DE PRIX MULTI-SITE — V1
 // ───────────────────────────────────────────────────────────────
@@ -1635,7 +1492,7 @@ model PriceWatch {
   imageUrl             String?
   /// Notes admin / tags
   tags                 String[]  @default([])
-  /// Lien optionnel vers un Product Kinky si on revend ce produit
+  /// Lien optionnel vers un Product GLD si on revend ce produit
   linkedProductId      String?
   /// ID du produit dans productsmanager.app PIM (si sync activée)
   pmProductId          String?   @unique
