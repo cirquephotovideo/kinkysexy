@@ -29,16 +29,16 @@ model User {
   auditLogs      AuditLog[]
 
   // V2 — Forum
-  forumThreads        ForumThread[]    @relation("threadAuthor")
-  forumPosts          ForumPost[]      @relation("postAuthor")
+  forumThreads     ForumThread[]   @relation("threadAuthor")
+  forumPosts       ForumPost[]     @relation("postAuthor")
   // V2 — Témoignages vidéo
-  referralCodes       ReferralCode[]
+  referralCodes    ReferralCode[]
   // V2.1 — Boutique avancée
-  reviews             ProductReview[]
-  wishlist            Wishlist[]
-  loyaltyAccount      LoyaltyAccount?
+  reviews          ProductReview[]
+  wishlist         Wishlist[]
+  loyaltyAccount   LoyaltyAccount?
   // V2 — Venues (établissements LGBT)
-  fbSessionCookies String?   @db.Text
+  fbSessionCookies String?         @db.Text
   fbLastSyncedAt   DateTime?
 
   // V3 — Profil enrichi back-office user
@@ -59,17 +59,19 @@ model User {
   dashboardTheme String?  @default("fuchsia") // "fuchsia" | "violet" | "cyan" | "rose" | "amber" | "emerald"
   favoriteColor  String?  @default("#d61b80")
 
-  bookmarks       Bookmark[]
+  bookmarks Bookmark[]
 
   // V5 — GLD Connect (réseau social 3-en-1)
 
   // V7 — Override fin du menu admin par utilisateur (au-dessus des règles de rôle)
-  menuOverride           UserMenuOverride?
+  menuOverride UserMenuOverride?
 
   // V8 — Tasks board + Leads CRM
-  tasksAssigned          Task[]   @relation("taskAssignee")
-  tasksCreated           Task[]   @relation("taskCreator")
-  leadProfile            Lead?
+  tasksAssigned   Task[]            @relation("taskAssignee")
+  tasksCreated    Task[]            @relation("taskCreator")
+  leadProfile     Lead?
+  AIConversation  AIConversation[]
+  UserActivityLog UserActivityLog[]
 }
 
 /// Bookmark générique (témoignages, lieux, posts, produits, events).
@@ -245,11 +247,11 @@ model Article {
   title       String
   excerpt     String?
   content     Json
-  bodyHtml    String?   @db.Text   // HTML pré-rendu (généré par IA ou manuel) pour aperçu instant
+  bodyHtml    String?   @db.Text // HTML pré-rendu (généré par IA ou manuel) pour aperçu instant
   coverImage  String?
   coverVideo  String?
-  images      String[]  @default([])  // URLs galerie multi-images (en plus du cover)
-  videoPrompt String?   @db.Text   // Prompt à passer à un générateur vidéo (Seedance/Veo/Runway)
+  images      String[]  @default([]) // URLs galerie multi-images (en plus du cover)
+  videoPrompt String?   @db.Text // Prompt à passer à un générateur vidéo (Seedance/Veo/Runway)
   tags        String[]
   published   Boolean   @default(false)
   publishedAt DateTime?
@@ -1189,25 +1191,25 @@ model LoginAttempt {
 // ───────────────────────────────────────────────────────────────
 
 model Task {
-  id          String     @id @default(cuid())
-  title       String
-  description String?    @db.Text
-  status      String     @default("todo")     // todo | doing | review | done | archive
-  priority    String     @default("normal")   // low | normal | high | urgent
-  position    Int        @default(0)          // ordre dans la colonne
-  dueAt       DateTime?
-  tags        String[]   @default([])
-  assignedTo  String?
-  assignee    User?      @relation("taskAssignee", fields: [assignedTo], references: [id])
-  createdById String?
-  createdBy   User?      @relation("taskCreator", fields: [createdById], references: [id])
+  id           String    @id @default(cuid())
+  title        String
+  description  String?   @db.Text
+  status       String    @default("todo") // todo | doing | review | done | archive
+  priority     String    @default("normal") // low | normal | high | urgent
+  position     Int       @default(0) // ordre dans la colonne
+  dueAt        DateTime?
+  tags         String[]  @default([])
+  assignedTo   String?
+  assignee     User?     @relation("taskAssignee", fields: [assignedTo], references: [id])
+  createdById  String?
+  createdBy    User?     @relation("taskCreator", fields: [createdById], references: [id])
   // Lien optionnel : la tâche peut concerner un Lead, un Article, une Newsletter, etc.
-  resourceType String?                          // "lead" | "article" | "newsletter" | "venue" | …
+  resourceType String? // "lead" | "article" | "newsletter" | "venue" | …
   resourceId   String?
-  notes        Json?                            // historique commentaires + checklist
+  notes        Json? // historique commentaires + checklist
   completedAt  DateTime?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([status, position])
   @@index([assignedTo, status])
@@ -1219,46 +1221,46 @@ model Task {
 // ───────────────────────────────────────────────────────────────
 
 model Lead {
-  id            String     @id @default(cuid())
-  email         String?
-  firstName     String?
-  lastName      String?
-  phone         String?
-  company       String?
-  jobTitle      String?
-  city          String?
-  country       String?
+  id              String            @id @default(cuid())
+  email           String?
+  firstName       String?
+  lastName        String?
+  phone           String?
+  company         String?
+  jobTitle        String?
+  city            String?
+  country         String?
   // Réseaux sociaux découverts
-  linkedinUrl   String?
-  twitterUrl    String?
-  instagramUrl  String?
-  facebookUrl   String?
-  websiteUrl    String?
+  linkedinUrl     String?
+  twitterUrl      String?
+  instagramUrl    String?
+  facebookUrl     String?
+  websiteUrl      String?
   // Source de découverte
-  source        String     @default("manual")    // manual | csv-import | scrape-linkedin | scrape-instagram | …
-  sourceDetail  String?                          // URL d'origine ou nom du fichier CSV
-  scrapedFromUrl String?
+  source          String            @default("manual") // manual | csv-import | scrape-linkedin | scrape-instagram | …
+  sourceDetail    String? // URL d'origine ou nom du fichier CSV
+  scrapedFromUrl  String?
   // Status pipeline
-  status        String     @default("new")       // new | qualified | contacted | engaged | customer | unsubscribed | bounced
-  score         Int        @default(0)           // 0-100 (qualification)
-  tags          String[]   @default([])
-  segments      String[]   @default([])          // newsletter segments
-  notes         String?    @db.Text
+  status          String            @default("new") // new | qualified | contacted | engaged | customer | unsubscribed | bounced
+  score           Int               @default(0) // 0-100 (qualification)
+  tags            String[]          @default([])
+  segments        String[]          @default([]) // newsletter segments
+  notes           String?           @db.Text
   // Subscription newsletter
-  newsletterOptIn Boolean  @default(false)
-  optInAt       DateTime?
-  unsubscribedAt DateTime?
+  newsletterOptIn Boolean           @default(false)
+  optInAt         DateTime?
+  unsubscribedAt  DateTime?
   // Lien optionnel à un User existant si cette personne crée un compte
-  userId        String?    @unique
-  user          User?      @relation(fields: [userId], references: [id])
+  userId          String?           @unique
+  user            User?             @relation(fields: [userId], references: [id])
   // Activité
-  interactions  LeadInteraction[]
+  interactions    LeadInteraction[]
   lastContactedAt DateTime?
-  contactCount  Int        @default(0)
+  contactCount    Int               @default(0)
   // Métadonnées flexibles
-  customFields  Json?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  customFields    Json?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
 
   @@unique([email])
   @@index([status, score])
@@ -1268,94 +1270,97 @@ model Lead {
 
 /// Trace des interactions avec un lead (email envoyé, ouvert, cliqué, appelé, etc.)
 model LeadInteraction {
-  id          String   @id @default(cuid())
-  leadId      String
-  lead        Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
-  type        String                              // email-sent | email-opened | email-clicked | email-bounced | sms | call | meeting | note
-  subject     String?
-  content     String?  @db.Text
-  externalId  String?                            // ex: Resend message ID
-  metadata    Json?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  leadId     String
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  type       String // email-sent | email-opened | email-clicked | email-bounced | sms | call | meeting | note
+  subject    String?
+  content    String?  @db.Text
+  externalId String? // ex: Resend message ID
+  metadata   Json?
+  createdAt  DateTime @default(now())
 
   @@index([leadId, createdAt])
 }
 
 /// Liste de scrape configurée — l'admin lance un scrape périodique via une URL ou des keywords
 model LeadScrapeJob {
-  id            String     @id @default(cuid())
-  name          String
-  source        String                              // linkedin | instagram | twitter | google-maps | website
-  config        Json                                // ex: { keywords: ["LGBT pastor"], location: "Paris" }
-  active        Boolean    @default(true)
-  status        String     @default("idle")        // idle | queued | running | done | error
-  lastRunAt     DateTime?
-  lastRunCount  Int?
-  totalLeads    Int        @default(0)
-  progress      Int        @default(0)             // 0-100
-  result        Json?                              // { contactsFound, pagesVisited, errors }
-  errorMessage  String?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
+  id           String    @id @default(cuid())
+  name         String
+  source       String // linkedin | instagram | twitter | google-maps | website
+  config       Json // ex: { keywords: ["LGBT pastor"], location: "Paris" }
+  active       Boolean   @default(true)
+  status       String    @default("idle") // idle | queued | running | done | error
+  lastRunAt    DateTime?
+  lastRunCount Int?
+  totalLeads   Int       @default(0)
+  progress     Int       @default(0) // 0-100
+  result       Json? // { contactsFound, pagesVisited, errors }
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
   @@index([status, updatedAt])
 }
 
 /// Template d'email/DM réutilisable pour la prospection.
 model EmailTemplate {
-  id          String   @id @default(cuid())
-  name        String                              // "B2B Salon Mariage Paris"
-  type        String                              // 'b2b-email' | 'b2c-dm-insta' | 'newsletter' | 'reply'
-  subject     String?                             // Sujet de l'email (null pour DM)
-  body        String   @db.Text
-  variables   String[] @default([])               // ["firstName", "company", "city"]
-  language    String   @default("fr")
-  active      Boolean  @default(true)
-  category    String?                             // "wedding-b2b" | "wedding-b2c" | "general"
-  usageCount  Int      @default(0)                // Nombre de fois utilisé
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  name       String // "B2B Salon Mariage Paris"
+  type       String // 'b2b-email' | 'b2c-dm-insta' | 'newsletter' | 'reply'
+  subject    String? // Sujet de l'email (null pour DM)
+  body       String   @db.Text
+  variables  String[] @default([]) // ["firstName", "company", "city"]
+  language   String   @default("fr")
+  active     Boolean  @default(true)
+  category   String? // "wedding-b2b" | "wedding-b2c" | "general"
+  usageCount Int      @default(0) // Nombre de fois utilisé
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
   @@index([type, active])
 }
 
 /// Compte mail IMAP/SMTP connecté pour le webmail back-office.
 model MailAccount {
-  id           String   @id @default(cuid())
-  label        String                             // "Contact GLD"
-  email        String   @unique
+  id           String    @id @default(cuid())
+  label        String // "Contact GLD"
+  email        String    @unique
   // IMAP read
   imapHost     String
-  imapPort     Int      @default(993)
-  imapSecure   Boolean  @default(true)
+  imapPort     Int       @default(993)
+  imapSecure   Boolean   @default(true)
   imapUser     String
-  imapPassword String                             // chiffré ou app password
+  imapPassword String // chiffré ou app password
   // SMTP send
   smtpHost     String
-  smtpPort     Int      @default(465)
-  smtpSecure   Boolean  @default(true)
+  smtpPort     Int       @default(465)
+  smtpSecure   Boolean   @default(true)
   smtpUser     String
   smtpPassword String
-  signature    String?  @db.Text
-  isDefault    Boolean  @default(false)
-  active       Boolean  @default(true)
+  signature    String?   @db.Text
+  isDefault    Boolean   @default(false)
+  active       Boolean   @default(true)
   lastSyncAt   DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 }
 
 /// Brouillons d'emails sauvegardés en local (pas envoyés au serveur SMTP/IMAP).
 model MailDraft {
-  id          String   @id @default(cuid())
-  accountId   String
-  toAddrs     String[] @default([])
-  ccAddrs     String[] @default([])
-  bccAddrs    String[] @default([])
-  subject     String?
-  body        String?  @db.Text
-  isHtml      Boolean  @default(false)
-  inReplyTo   String?                            // Message-ID auquel on répond
-  leadId      String?                            // Si lié à un lead
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(cuid())
+  accountId String
+  toAddrs   String[] @default([])
+  ccAddrs   String[] @default([])
+  bccAddrs  String[] @default([])
+  subject   String?
+  body      String?  @db.Text
+  isHtml    Boolean  @default(false)
+  inReplyTo String? // Message-ID auquel on répond
+  leadId    String? // Si lié à un lead
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@index([accountId, updatedAt])
 }
 
@@ -1365,18 +1370,18 @@ model MailDraft {
 
 /// Bloc visuel d'une page éditée via Page Builder.
 model PageBlock {
-  id        String   @id @default(cuid())
-  pageSlug  String                                 // ex: "home", "membre-plus", "argumentaire"
-  position  Int      @default(0)                   // ordre vertical
-  width     String   @default("full")              // "1/3" | "1/2" | "2/3" | "full" | "1/4" | "3/4"
-  height    String   @default("auto")              // "auto" | "square" | "wide" | "tall"
-  type      String                                 // "text" | "image" | "video" | "cta" | "hero" | "columns" | "embed" | "spacer" | "html"
-  data      Json                                   // { text, html, src, prompt, … }
-  effect    String?                                // "fade" | "slide-up" | "slide-left" | "scale" | "parallax"
-  effectDelay Int?                                 // ms before triggering
-  visible   Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  pageSlug    String // ex: "home", "membre-plus", "argumentaire"
+  position    Int      @default(0) // ordre vertical
+  width       String   @default("full") // "1/3" | "1/2" | "2/3" | "full" | "1/4" | "3/4"
+  height      String   @default("auto") // "auto" | "square" | "wide" | "tall"
+  type        String // "text" | "image" | "video" | "cta" | "hero" | "columns" | "embed" | "spacer" | "html"
+  data        Json // { text, html, src, prompt, … }
+  effect      String? // "fade" | "slide-up" | "slide-left" | "scale" | "parallax"
+  effectDelay Int? // ms before triggering
+  visible     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
   @@index([pageSlug, position])
   @@index([visible])
@@ -1385,17 +1390,17 @@ model PageBlock {
 /// Demande d'approbation envoyée à Telegram pour valider une action autopilot
 /// (commit, push, deploy, suppression, etc.). L'utilisateur répond via /approve <id> ou /reject <id>.
 model ClaudeApproval {
-  id          String    @id @default(cuid())
-  sessionId   String?
-  action      String                                          // ex: "git push", "delete-user", "deploy"
-  description String    @db.Text
-  context     Json?                                           // détail technique
-  status      String    @default("pending")                   // pending | approved | rejected | timeout
+  id                String    @id @default(cuid())
+  sessionId         String?
+  action            String // ex: "git push", "delete-user", "deploy"
+  description       String    @db.Text
+  context           Json? // détail technique
+  status            String    @default("pending") // pending | approved | rejected | timeout
   telegramMessageId String?
-  decidedBy   String?
-  decidedAt   DateTime?
-  expiresAt   DateTime
-  createdAt   DateTime  @default(now())
+  decidedBy         String?
+  decidedAt         DateTime?
+  expiresAt         DateTime
+  createdAt         DateTime  @default(now())
 
   @@index([status, expiresAt])
   @@index([sessionId])
@@ -1405,20 +1410,20 @@ model ClaudeApproval {
 /// Stocke le prompt initial + tous les messages du stream (assistant text,
 /// tool uses, tool results). Permet de relire/audite r ce que l'IA a fait.
 model ClaudeSession {
-  id           String           @id @default(cuid())
-  userId       String?
-  prompt       String           @db.Text
-  model        String           @default("claude-sonnet-4-5")
-  workingDir   String?                                       // cwd côté serveur
-  permissionMode String         @default("bypassPermissions") // "default" | "acceptEdits" | "bypassPermissions"
-  status       String           @default("running")          // "running" | "completed" | "error" | "cancelled"
-  durationMs   Int?
+  id                String          @id @default(cuid())
+  userId            String?
+  prompt            String          @db.Text
+  model             String          @default("claude-sonnet-4-5")
+  workingDir        String? // cwd côté serveur
+  permissionMode    String          @default("bypassPermissions") // "default" | "acceptEdits" | "bypassPermissions"
+  status            String          @default("running") // "running" | "completed" | "error" | "cancelled"
+  durationMs        Int?
   totalInputTokens  Int?
   totalOutputTokens Int?
-  errorMessage String?          @db.Text
-  messages     ClaudeMessage[]
-  createdAt    DateTime         @default(now())
-  finishedAt   DateTime?
+  errorMessage      String?         @db.Text
+  messages          ClaudeMessage[]
+  createdAt         DateTime        @default(now())
+  finishedAt        DateTime?
 
   @@index([userId, createdAt])
   @@index([status])
@@ -1426,13 +1431,13 @@ model ClaudeSession {
 
 /// Un message dans une session Claude (du SDK).
 model ClaudeMessage {
-  id         String        @id @default(cuid())
-  sessionId  String
-  session    ClaudeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  type       String                                          // "assistant" | "user" | "tool_use" | "tool_result" | "system" | "result"
-  payload    Json                                            // contenu brut du message (raw SDK message)
-  index      Int           @default(0)
-  createdAt  DateTime      @default(now())
+  id        String        @id @default(cuid())
+  sessionId String
+  session   ClaudeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  type      String // "assistant" | "user" | "tool_use" | "tool_result" | "system" | "result"
+  payload   Json // contenu brut du message (raw SDK message)
+  index     Int           @default(0)
+  createdAt DateTime      @default(now())
 
   @@index([sessionId, index])
 }
@@ -1447,10 +1452,10 @@ model UserMenuOverride {
   id        String   @id @default(cuid())
   userId    String   @unique
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  hidden    String[] @default([])  // hrefs explicitement cachés pour ce user
-  visible   String[] @default([])  // hrefs explicitement montrés pour ce user (override règle de rôle)
+  hidden    String[] @default([]) // hrefs explicitement cachés pour ce user
+  visible   String[] @default([]) // hrefs explicitement montrés pour ce user (override règle de rôle)
   notes     String?
-  updatedBy String?                // email du super-admin qui a édité
+  updatedBy String? // email du super-admin qui a édité
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -1503,7 +1508,7 @@ model PriceWatch {
   /// Date de la dernière alerte envoyée pour ce watch (anti-spam, 24h min entre 2 alertes)
   lastAlertAt          DateTime?
   /// Seuil de variation % qui déclenche une alerte (ex: 5 = alerte si baisse >5%). Défaut 10.
-  alertThresholdPct    Int      @default(10)
+  alertThresholdPct    Int       @default(10)
   /// Devise par défaut (EUR/USD/GBP)
   currency             String    @default("EUR")
   /// Watch active = continue d'être rafraîchi par le cron
