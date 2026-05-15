@@ -61,6 +61,13 @@ const nextConfig = {
   experimental: {
     serverActions: { bodySizeLimit: '20mb' }
   },
+  webpack: (config) => {
+    config.resolve.alias = {
+      ...(config.resolve.alias ?? {}),
+      '@': new URL('./src', import.meta.url).pathname
+    };
+    return config;
+  },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
