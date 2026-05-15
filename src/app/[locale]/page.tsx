@@ -1,278 +1,170 @@
 import { Link } from '@/i18n/routing';
-import { setRequestLocale, getTranslations } from 'next-intl/server';
-import { Heart, BookOpen, Handshake, Users, Download } from 'lucide-react';
-import { getAllSettings } from '@/lib/settings';
-import { HeroBannerCarousel } from '@/components/HeroBannerCarousel';
-import { HeroAIVisualsBanner } from '@/components/HeroAIVisualsBanner';
-import { NeonHeart } from '@/components/NeonHeart';
-import { PhotoCarousel } from '@/components/PhotoCarousel';
-import { NewsCarousel } from '@/components/NewsCarousel';
-import { YoutubeCarousel } from '@/components/YoutubeCarousel';
-import { PartnersBand } from '@/components/PartnersBand';
-import { ProductsCarousel } from '@/components/ProductsCarousel';
-import { PosterThumbnail } from '@/components/PosterThumbnail';
+import { setRequestLocale } from 'next-intl/server';
+import { Sparkles, Truck, Shield, Heart, MessageCircle } from 'lucide-react';
 import { prisma } from '@/lib/prisma';
-import { publicUrl } from '@/lib/storage';
 
-// SSR : la home appelle Prisma à chaque requête.
-// (Coolify n'a pas DATABASE_URL au build → on ne peut pas faire d'ISR pour le moment.)
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
+
+const CATEGORIES = [
+  { slug: 'vibromasseurs',   emoji: '💎', name: 'Vibromasseurs' },
+  { slug: 'stimulateurs',    emoji: '🌸', name: 'Stimulateurs' },
+  { slug: 'couples',         emoji: '💑', name: 'Pour couples' },
+  { slug: 'lingerie',        emoji: '👙', name: 'Lingerie' },
+  { slug: 'bdsm',            emoji: '⛓️',  name: 'BDSM' },
+  { slug: 'bien-etre',       emoji: '🌿', name: 'Bien-être intime' }
+];
 
 export default async function HomePage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const t = await getTranslations('home');
-  const s = await getAllSettings();
 
-  const v = (key: string, fallback: string) => s[`home.${key}`] || fallback;
-  const titleA = s['home.hero.titleA'] || 'GOD';
-  const titleB = s['home.hero.titleB'] || 'LOVES DIVERSITY';
-  const subtitle = v('hero.subtitle',
-    "Dieu n'est pas opposé aux personnes LGBT. L'amour, la justice et la compassion sont au cœur des grandes religions monothéistes."
-  );
-  const ctaPrimary = v('hero.ctaPrimary', 'Comprendre le message');
-  const ctaSecondary = v('hero.ctaSecondary', 'Voir les photos');
-  const pillarsTitle = v('pillars.title', 'L\'AMOUR EST UNIVERSEL');
-  const postersTitle = v('posters.title', 'TÉLÉCHARGEZ L\'AFFICHE');
-  const postersText = v('posters.text', 'Imprimez, affichez, prenez une photo et soyez acteur du changement !');
-  const logoUrl = s['site.logoUrl'];
-  const hashtag = s['campaign.hashtag'] || '#KinkySexy';
-
-  const pillars = [
-    {
-      icon: Heart,
-      color: '#FF2BB1',
-      title: v('pillar1.title', 'DIEU EST AMOUR'),
-      text: v('pillar1.text', 'Au cœur des trois grandes religions monothéistes, Dieu est amour, miséricorde et compassion.')
-    },
-    {
-      icon: BookOpen,
-      color: '#FBBF24',
-      title: v('pillar2.title', 'LES TEXTES SONT CONTEXTUALISÉS'),
-      text: v('pillar2.text', 'Les passages souvent cités doivent être compris dans leur contexte historique, culturel et social.')
-    },
-    {
-      icon: Handshake,
-      color: '#34D399',
-      title: v('pillar3.title', 'L\'INTERPRÉTATION EST HUMAINE'),
-      text: v('pillar3.text', 'Les traductions et interprétations ont été influencées par des normes culturelles pas toujours en accord avec l\'amour universel.')
-    },
-    {
-      icon: Users,
-      color: '#8B5CF6',
-      title: v('pillar4.title', 'FOI ET DIVERSITÉ SONT COMPATIBLES'),
-      text: v('pillar4.text', 'De nombreuses communautés religieuses inclusives existent et accueillent les personnes LGBT+.')
-    }
-  ];
-
-  const recentPhotos = await prisma.photo.findMany({
-    where: { status: 'APPROVED' },
-    orderBy: { createdAt: 'desc' },
-    take: 12
-  });
-  const photoItems = recentPhotos.map((p) => ({
-    id: p.id,
-    url: publicUrl(p.storageKey),
-    isDemo: p.storageKey?.startsWith('demo/') || false,
-    caption: p.caption,
-    placeName: p.placeName,
-    placeType: p.placeType,
-    city: p.city,
-    country: p.country,
-    author: p.authorName
-  }));
-
-  // Vidéos YouTube
-  const videos = await prisma.youtubeVideo.findMany({
-    where: { published: true },
-    orderBy: { order: 'asc' },
-    take: 12
-  });
-
-  // Ticker items + montants donation depuis settings
-  const tickerRaw = s['donate.tickerItems'] || '';
-  const tickerItems = tickerRaw.split('\n').map(x => x.trim()).filter(Boolean);
-  const amountsRaw = s['donate.amounts'] || '5,10';
-  const donateAmounts = amountsRaw.split(',').map(x => Number(x.trim())).filter(n => n > 0);
-
-  const recentArticles = await prisma.article.findMany({
-    where: { published: true, locale },
-    orderBy: { publishedAt: 'desc' },
-    take: 8
-  });
-  const articleItems = recentArticles.map((a) => ({
-    id: a.id, title: a.title, slug: a.slug, excerpt: a.excerpt,
-    coverImage: a.coverImage, coverVideo: a.coverVideo,
-    publishedAt: a.publishedAt?.toISOString() || null, tags: a.tags
-  }));
-
-  // Récupère bannières dynamiques (FR par défaut, fallback hardcodé)
-  // Filtre par calendrier d'activation : on charge tout puis on filtre côté JS
-  // (pour gérer aussi le linkedThemeSlug qui demande de croiser avec Theme actif)
-  const now = new Date();
-  const allBanners = await prisma.banner.findMany({
-    where: { locale, published: true },
-    orderBy: { order: 'asc' }
-  }).catch(() => []);
-
-  // Charge thème actif (manuel ou auto) pour résoudre linkedThemeSlug
-  let activeThemeSlug: string | null = null;
+  let products: any[] = [];
   try {
-    const t = await prisma.theme.findFirst({ where: { active: true }, select: { slug: true } });
-    if (t) activeThemeSlug = t.slug;
-  } catch {}
-
-  function isBannerActive(b: any): boolean {
-    // Si lié à un thème : visible seulement si ce thème est actif
-    if (b.linkedThemeSlug) return activeThemeSlug === b.linkedThemeSlug;
-    // Sinon : check fenêtre date
-    if (b.activeFrom && now < new Date(b.activeFrom)) return false;
-    if (b.activeUntil && now > new Date(b.activeUntil)) return false;
-    return true;
-  }
-
-  let banners = allBanners.filter(isBannerActive);
-  if (banners.length === 0 && locale !== 'fr') {
-    const altAll = await prisma.banner.findMany({
-      where: { locale: 'fr', published: true },
-      orderBy: { order: 'asc' }
-    }).catch(() => []);
-    banners = altAll.filter(isBannerActive);
-  }
-  if (banners.length === 0) {
-    banners = [{
-      id: 'default', order: 1, locale, published: true,
-      eyebrow: 'Mouvement interreligieux • 2026',
-      title: 'GOD LOVES DIVERSITY',
-      subtitle, accentColor: '#FF2BB1',
-      cta1Text: 'COMPRENDRE LE MESSAGE', cta1Url: '/argumentaire',
-      cta2Text: 'VOIR LES PHOTOS', cta2Url: '/galerie',
-      mediaUrl: null, mediaType: null,
-      createdAt: new Date(), updatedAt: new Date()
-    } as any];
-  }
+    products = await prisma.product.findMany({
+      where: { published: true },
+      orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
+      take: 4
+    });
+  } catch { products = []; }
 
   return (
-    <>
-      {/* ═══ HERO BANNER CAROUSEL ═══ */}
-      <HeroBannerCarousel banners={banners} logoUrl={logoUrl || null} />
-
-      {/* ═══ VISUELS IA HERO (générés depuis /admin/ai) ═══ */}
-      <div className="container-wide pt-6"><HeroAIVisualsBanner height={360} /></div>
-
-      {/* ═══ PILIERS « L'AMOUR EST UNIVERSEL » ═══ */}
-      <section className="py-20" style={{ background: 'var(--bg)' }}>
-        <div className="container-wide">
-          <div className="text-center mb-16">
-            <h2 className="font-display text-3xl md:text-5xl font-black tracking-wide">{pillarsTitle}</h2>
-            <div className="mx-auto mt-3 h-1 w-16 bg-brand-pink rounded-full" />
-          </div>
-
-          <div className="grid md:grid-cols-4 gap-0 max-w-6xl mx-auto">
-            {pillars.map((p, i) => {
-              const Icon = p.icon;
-              return (
-                <div
-                  key={i}
-                  className={`px-6 py-4 text-center ${i < 3 ? 'md:border-r md:border-white/10' : ''}`}
-                >
-                  <div className="flex justify-center mb-5">
-                    <Icon size={56} strokeWidth={1.5} style={{ color: p.color }} />
-                  </div>
-                  <h3 className="font-display font-bold text-sm tracking-widest mb-3">{p.title}</h3>
-                  <div className="mx-auto h-px w-10 bg-white/20 mb-3" />
-                  <p className="text-sm text-white/70 leading-relaxed">{p.text}</p>
-                </div>
-              );
-            })}
+    <main className="min-h-screen" style={{ background: '#0a0a0d', color: '#f5f5f7' }}>
+      <section
+        className="relative overflow-hidden"
+        style={{
+          background:
+            'radial-gradient(ellipse at 30% 0%,rgba(124,58,237,0.18) 0%,transparent 55%),radial-gradient(ellipse at 75% 20%,rgba(255,45,138,0.15) 0%,transparent 50%)'
+        }}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20 md:py-32">
+          <span
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium"
+            style={{ background: 'rgba(255,45,138,0.10)', color: '#ff58a3', border: '1px solid rgba(255,45,138,0.30)' }}
+          >
+            <Sparkles className="w-3.5 h-3.5" /> SÉLECTION 18+ · LIVRAISON DISCRÈTE
+          </span>
+          <h1
+            className="text-5xl md:text-7xl font-bold leading-[1.05] mt-6 mb-6"
+            style={{ fontFamily: 'Fraunces, Georgia, serif' }}
+          >
+            <span
+              style={{
+                backgroundImage: 'linear-gradient(135deg,#ff2d8a 0%,#7c3aed 100%)',
+                WebkitBackgroundClip: 'text',
+                backgroundClip: 'text',
+                color: 'transparent'
+              }}
+            >
+              Le plaisir,
+            </span>
+            <br />sans compromis.
+          </h1>
+          <p className="text-lg md:text-xl max-w-xl mb-8" style={{ color: 'rgba(245,245,247,0.6)' }}>
+            Sextoys, lingerie et accessoires choisis avec soin. Emballage neutre, paiement
+            sécurisé, livraison rapide en France et Europe.
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <Link
+              href={'/boutique' as any}
+              className="px-6 py-3 rounded-full font-medium text-white"
+              style={{ background: 'linear-gradient(135deg,#ff2d8a 0%,#7c3aed 100%)' }}
+            >
+              Découvrir la boutique →
+            </Link>
+            <Link
+              href={'/contact' as any}
+              className="px-6 py-3 rounded-full"
+              style={{ border: '1px solid rgba(255,255,255,0.15)', color: '#f5f5f7' }}
+            >
+              Nous contacter
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* ═══ BOUTIQUE — produits défilants (remonté pour visibilité) ═══ */}
-      <ProductsCarousel />
-
-      {/* ═══ TÉLÉCHARGEZ L'AFFICHE ═══ */}
-      <PostersShowcase title={postersTitle} text={postersText} />
-
-      {/* ═══ CARROUSEL PHOTOS (auto-scroll infini) ═══ */}
-      <PhotoCarousel photos={photoItems} title="Galerie" />
-
-      {/* ═══ CARROUSEL VIDÉOS YOUTUBE ═══ */}
-      {videos.length > 0 && <YoutubeCarousel videos={videos} />}
-
-      {/* ═══ CARROUSEL ACTUS ═══ */}
-      {articleItems.length > 0 && <NewsCarousel articles={articleItems} />}
-
-      {/* ═══ PARTENAIRES ═══ */}
-      <PartnersBand />
-    </>
-  );
-}
-
-/* ─── Section affiches — utilise les VRAIES affiches en DB (image preview ou page 1 du PDF) ─── */
-async function PostersShowcase({ title, text }: { title: string; text: string }) {
-  // Charge les 3 premières affiches publiées
-  let posters: any[] = [];
-  try {
-    posters = await prisma.poster.findMany({
-      where: { published: true },
-      orderBy: [{ order: 'asc' }, { createdAt: 'desc' }],
-      take: 3
-    });
-  } catch { posters = []; }
-
-  return (
-    <section className="py-20" style={{ background: 'var(--hero-bg, #0a0314)' }}>
-      <div className="container-wide grid lg:grid-cols-2 gap-12 items-center">
-        <div>
-          <h2 className="font-display text-3xl md:text-5xl font-black tracking-wide">{title}</h2>
-          <div className="mt-3 h-1 w-16 bg-brand-pink rounded-full" />
-          <p className="mt-6 text-white/75 max-w-md leading-relaxed">{text}</p>
-          <Link
-            href="/affiches"
-            className="mt-8 inline-flex items-center gap-2 bg-brand-pink hover:bg-brand-rose text-white font-bold uppercase text-xs tracking-widest px-6 py-3 rounded-full transition shadow-[0_0_30px_rgba(255,43,177,.4)]"
-          >
-            <Download size={14} /> Télécharger
-          </Link>
+      <section style={{ borderTop: '1px solid rgba(255,255,255,0.10)', borderBottom: '1px solid rgba(255,255,255,0.10)', background: 'rgba(255,255,255,0.02)' }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10 grid grid-cols-2 md:grid-cols-4 gap-8">
+          {[
+            { icon: Truck, t: 'Livraison discrète', d: 'Emballage neutre, sans mention' },
+            { icon: Shield, t: 'Paiement sécurisé', d: 'Stripe, PayPal, Apple Pay' },
+            { icon: Heart, t: 'Stock européen', d: 'Expédié 2-5 jours France' },
+            { icon: MessageCircle, t: 'Support 7j/7', d: "Sans tabou, à l'écoute" }
+          ].map(({ icon: Icon, t, d }) => (
+            <div key={t} className="flex gap-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: 'rgba(255,45,138,0.10)' }}>
+                <Icon className="w-5 h-5" style={{ color: '#ff2d8a' }} />
+              </div>
+              <div>
+                <p className="font-medium text-sm">{t}</p>
+                <p className="text-xs mt-1" style={{ color: 'rgba(245,245,247,0.6)' }}>{d}</p>
+              </div>
+            </div>
+          ))}
         </div>
-        {/* Vraies miniatures depuis la DB */}
-        <div className="flex items-end justify-center gap-4 flex-wrap">
-          {posters.length === 0 ? (
-            <p className="text-white/40 text-sm italic">Affiches en préparation…</p>
-          ) : posters.map((p, i) => {
-            // Tailles décroissantes pour effet "vitrine"
-            const sizes = [{ w: 160, h: 226 }, { w: 130, h: 184 }, { w: 100, h: 178 }];
-            const sz = sizes[i] || sizes[0];
-            const hasImage = !!p.thumbnailKey;
-            const isImageFile = /\.(png|jpe?g|webp|gif)$/i.test(p.fileKey || '');
-            // Si on a un thumbnailKey → image. Sinon si fileKey est une image → l'utiliser comme thumbnail.
-            const imageUrl = hasImage ? publicUrl(p.thumbnailKey) : (isImageFile ? publicUrl(p.fileKey) : null);
-            return (
-              <Link key={p.id} href="/affiches" className="flex flex-col items-center gap-2 group">
-                <div
-                  className="rounded-lg overflow-hidden bg-black border border-white/10 shadow-[0_0_30px_rgba(255,43,177,.25)] relative group-hover:scale-105 transition"
-                  style={{ width: sz.w, height: sz.h }}
-                >
-                  {imageUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={imageUrl} alt={p.title} className="w-full h-full object-cover" />
-                  ) : (
-                    <PosterThumbnail pdfUrl={publicUrl(p.fileKey)} format={p.format} alt={p.title} />
-                  )}
-                  <div className="absolute top-2 left-2 bg-brand-pink text-white text-[10px] font-bold px-2 py-0.5 rounded shadow">
-                    {p.format}
-                  </div>
+      </section>
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 py-20">
+        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ fontFamily: 'Fraunces, Georgia, serif' }}>
+          Explorer par <span style={{ color: '#ff2d8a' }}>catégorie</span>
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {CATEGORIES.map((c) => (
+            <Link key={c.slug} href={`/boutique?category=${c.slug}` as any} className="rounded-2xl p-6 text-center" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)' }}>
+              <div className="text-4xl mb-3">{c.emoji}</div>
+              <p className="font-medium text-sm">{c.name}</p>
+            </Link>
+          ))}
+        </div>
+      </section>
+
+      <section className="max-w-7xl mx-auto px-4 sm:px-6 pb-20">
+        <div className="flex items-end justify-between mb-10">
+          <div>
+            <h2 className="text-3xl md:text-4xl font-bold" style={{ fontFamily: 'Fraunces, Georgia, serif' }}>Les plus désirés</h2>
+            <p className="mt-2" style={{ color: 'rgba(245,245,247,0.6)' }}>Sélection éditoriale</p>
+          </div>
+          <Link href={'/boutique' as any} className="text-sm hidden md:inline" style={{ color: '#ff2d8a' }}>Voir tout →</Link>
+        </div>
+        {products.length === 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                <div className="aspect-square animate-pulse" style={{ background: 'linear-gradient(135deg, rgba(255,45,138,0.13), rgba(124,58,237,0.13))' }} />
+                <div className="p-4 space-y-2">
+                  <p className="text-xs uppercase tracking-wider" style={{ color: 'rgba(245,245,247,0.5)' }}>Bientôt</p>
+                  <p className="text-sm font-medium">Catalogue en cours d'import…</p>
                 </div>
-                <span className="text-xs text-white/60 font-mono">{p.format}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+            {products.map((p: any) => (
+              <Link key={p.id} href={`/boutique/${p.slug}` as any} className="rounded-2xl overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.10)' }}>
+                <div className="aspect-square" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                  {p.image && <img src={p.image} alt={p.name} className="w-full h-full object-cover" />}
+                </div>
+                <div className="p-4">
+                  <p className="text-sm font-medium">{p.name}</p>
+                  <p className="mt-2 font-bold" style={{ color: '#ff2d8a' }}>
+                    {((p.priceCents ?? 0) / 100).toLocaleString('fr-FR', { style: 'currency', currency: p.currency || 'EUR' })}
+                  </p>
+                </div>
               </Link>
-            );
-          })}
+            ))}
+          </div>
+        )}
+      </section>
+
+      <footer className="py-10 text-center text-xs" style={{ borderTop: '1px solid rgba(255,255,255,0.10)', color: 'rgba(245,245,247,0.4)' }}>
+        <p>© 2026 KinkySexy — vente strictement réservée aux adultes (18+)</p>
+        <div className="mt-3 flex gap-4 justify-center">
+          <Link href={'/mentions-legales' as any}>Mentions légales</Link>
+          <Link href={'/rgpd' as any}>RGPD</Link>
+          <Link href={'/contact' as any}>Contact</Link>
         </div>
-      </div>
-    </section>
+      </footer>
+    </main>
   );
 }
-
-
