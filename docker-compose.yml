@@ -1,0 +1,80 @@
+# Stack PRODUCTION / Coolify
+# - Pas de host ports (Coolify gère via Traefik avec SERVICE_FQDN magique)
+# - Pas de container_name (Coolify préfixe automatiquement)
+# - Pour le développement local avec hot-reload des ports : docker-compose.override.yml est appliqué automatiquement
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kinkysexy
+      POSTGRES_USER: kinky
+      POSTGRES_PASSWORD: kinky
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kinky -d kinkysexy"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    volumes:
+      - redisdata:/data
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: kinkyminio
+      MINIO_ROOT_PASSWORD: kinkyminio-secret
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 kinkyminio kinkyminio-secret &&
+      mc mb -p local/kinkysexy || true &&
+      mc anonymous set download local/kinkysexy || true &&
+      echo '✅ MinIO bucket kinkysexy ready'
+      "
+
+  mailpit:
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      minio:
+        condition: service_healthy
+    environment:
+      # Magic Coolify : SERVICE_FQDN_WEB_3000 sera remplacé par le domaine assigné
+      - 'SERVICE_FQDN_WEB_3000'
+    expose:
+      - "3000"
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:

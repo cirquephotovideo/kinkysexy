@@ -1,0 +1,63 @@
+# Stack DEV : DB + Redis + MinIO + Mailpit uniquement
+# Le front Next.js tourne en local (npm run dev) pour un hot-reload rapide.
+# Lancer :  docker compose -f docker-compose.dev.yml up -d
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: kinky-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: kinkysexy
+      POSTGRES_USER: kinky
+      POSTGRES_PASSWORD: kinky
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    container_name: kinky-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+
+  minio:
+    image: minio/minio:latest
+    container_name: kinky-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: kinkyminio
+      MINIO_ROOT_PASSWORD: kinkyminio-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - miniodata:/data
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on: [minio]
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5 &&
+      mc alias set local http://minio:9000 kinkyminio kinkyminio-secret &&
+      mc mb -p local/kinkysexy || true &&
+      mc anonymous set download local/kinkysexy || true
+      "
+
+  mailpit:
+    image: axllent/mailpit:latest
+    container_name: kinky-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  pgdata:
+  redisdata:
+  miniodata:
