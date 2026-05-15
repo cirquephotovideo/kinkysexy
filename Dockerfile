@@ -38,4 +38,4 @@ COPY --from=builder /app/node_modules ./node_modules
 EXPOSE 3000
 ENV HOSTNAME="0.0.0.0"
 # Bootstrap DB + démarrage. On utilise db push (pas migrate) pour ne pas dépendre de fichiers de migration.
-CMD ["/bin/sh", "-c", "set -e; echo '▶ DB push...'; npx prisma db push --accept-data-loss --skip-generate 2>&1 || echo 'DB push échec — on continue'; echo '▶ Seed DB...'; npx prisma db seed 2>&1 || echo 'Seed échec — on continue'; echo '▶ node server.js'; exec node server.js"]
+CMD ["/bin/sh", "-c", "set +e; echo '═══════════════════'; echo '▶ STARTUP KinkySexy'; echo '═══════════════════'; echo '▶ Step 1: DB push (timeout 60s)...'; timeout 60 npx prisma db push --accept-data-loss --skip-generate 2>&1; echo \"  └─ exit=$?\"; echo '▶ Step 2: Seed (timeout 30s)...'; timeout 30 npx prisma db seed 2>&1 || echo '  └─ seed skipped/failed'; echo '▶ Step 3: node server.js'; node server.js 2>&1 || (echo '═══ CRASH node server.js ═══'; echo 'Container reste alive 10 min pour debug...'; sleep 600)"]
